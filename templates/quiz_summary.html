@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>クイズ結果</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        .container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #0056b3;
+            text-align: center;
+        }
+        p {
+            font-size: 1.1em;
+            line-height: 1.6;
+        }
+        .summary-item {
+            margin-bottom: 10px;
+        }
+        .incorrect-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        .incorrect-list li {
+            background-color: #ffebeb;
+            border: 1px solid #ffcccc;
+            padding: 10px;
+            margin-bottom: 5px;
+            border-radius: 4px;
+        }
+        .actions button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            margin-right: 10px;
+        }
+        .actions button:hover {
+            background-color: #0056b3;
+        }
+        .actions a {
+            display: inline-block;
+            margin-top: 20px;
+            color: #007bff;
+            text-decoration: none;
+        }
+        .actions a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>クイズ結果</h1>
+        <div class="summary-item">
+            <p>今回の正解率: <strong>{{ accuracy }}%</strong></p>
+            <p>不正解数: <strong>{{ incorrect_count }}</strong></p>
+        </div>
+
+        {% if incorrect_questions %}
+            <h2>不正解だった問題</h2>
+            <ul class="incorrect-list">
+                {% for q in incorrect_questions %}
+                    <li>
+                        <strong>問題:</strong> {{ q.english_full }}<br>
+                        <strong>正解:</strong> {{ q.japanese_full }}
+                    </li>
+                {% endfor %}
+            </ul>
+            <div class="actions">
+                <form action="{{ url_for('start_incorrect_quiz') }}" method="get">
+                    <button type="submit">不正解問題に再挑戦</button>
+                </form>
+            </div>
+        {% else %}
+            <p>素晴らしい！今回のクイズでは全問正解でした！</p>
+        {% endif %}
+
+        <div class="actions">
+            <form action="{{ url_for('start_all_quiz') }}" method="get">
+                <button type="submit">全問題で新しいクイズを開始</button>
+            </form>
+            <p><a href="{{ url_for('index') }}">トップページに戻る</a></p>
+        </div>
+    </div>
+</body>
+</html>
