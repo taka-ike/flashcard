@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>クイズ</title>
+</head>
+<body>
+    <h1>クイズ</h1>
+    <h2>{{ question | safe }}</h2>
+    <form action="/answer" method="post">
+        <input type="hidden" name="question" value="{{ question }}">
+        <input type="hidden" name="correct_answer" value="{{ correct_answer }}">
+        <input type="hidden" name="mode" value="{{ mode }}">
+        <input type="hidden" name="quiz_type" value="{{ quiz_type }}">
+        <input type="hidden" name="english_full" value="{{ word.english_full }}">
+        {% for choice in choices %}
+            <button type="submit" name="choice" value="{{ choice }}">{{ choice }}</button>
+        {% endfor %}
+    </form>
+</body>
+</html>

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>フラッシュカード</title>
+</head>
+<body>
+    <h1>フラッシュカード</h1>
+    
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <ul class=flashes>
+        {% for message in messages %}
+          <li>{{ message }}</li>
+        {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+
+    <h2>学習モード</h2>
+    <ul>
+        <li><a href="{{ url_for('quiz', mode='review') }}">復習する</a></li>
+        <li><a href="{{ url_for('quiz', mode='difficult') }}">苦手な問題を解く</a></li>
+    </ul>
+
+    <h2>ランダムクイズ</h2>
+    <ul>
+        <li><a href="{{ url_for('quiz', quiz_type='en_to_jp', mode='random') }}">英語 → 日本語</a></li>
+        <li><a href="{{ url_for('quiz', quiz_type='jp_to_en', mode='random') }}">日本語 → 英語</a></li>
+        <li><a href="{{ url_for('quiz', quiz_type='fill_en', mode='random') }}">英語穴埋め</a></li>
+        <li><a href="{{ url_for('quiz', quiz_type='fill_jp', mode='random') }}">日本語穴埋め</a></li>
+    </ul>
+    <h2>言葉の意味モード</h2>
+    <ul>
+        <li><a href="{{ url_for('meaning_quiz', mode='word_to_meaning') }}">言葉 → 意味</a></li>
+        <li><a href="{{ url_for('meaning_quiz', mode='meaning_to_word') }}">意味 → 言葉</a></li>
+    </ul>
+    <hr>
+    <a href="{{ url_for('edit_db') }}">単語データベースを編集・進捗確認</a><br>
+    <a href="{{ url_for('edit_meanings') }}">言葉の意味データベースを編集</a>
+</body>
+</html>

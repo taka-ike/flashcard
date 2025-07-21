@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>データベース編集</title>
+</head>
+<body>
+    <h1>データベース編集</h1>
+    <form action="/update" method="post">
+        <table>
+            <thead>
+                <tr>
+                    <th>英語</th>
+                    <th>日本語</th>
+                    <th>正解率</th>
+                    <th>次の復習日</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for word in words %}
+                <tr>
+                    <td><input type="text" name="english_full" value="{{ word.english_full }}"></td>
+                    <td><input type="text" name="japanese_full" value="{{ word.japanese_full }}"></td>
+                    <td>{{ '%.0f'|format(word.accuracy * 100) }}%</td>
+                    <td>{{ word.next_review_date }}</td>
+                </tr>
+                {% endfor %}
+                <tr>
+                    <td><input type="text" name="english_full" placeholder="新しい単語"></td>
+                    <td><input type="text" name="japanese_full" placeholder="新しい意味"></td>
+                    <td>-</td>
+                    <td>-</td>
+                </tr>
+            </tbody>
+        </table>
+        <button type="submit">更新</button>
+    </form>
+    <a href="{{ url_for('index') }}">トップへ戻る</a>
+</body>
+</html>

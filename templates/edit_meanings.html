@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>言葉の意味データベース編集</title>
+</head>
+<body>
+    <h1>言葉の意味データベース編集</h1>
+    <form action="/update_meanings" method="post">
+        <table>
+            <thead>
+                <tr>
+                    <th>言葉</th>
+                    <th>意味</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in meanings %}
+                <tr>
+                    <td><input type="text" name="word" value="{{ item.word }}"></td>
+                    <td><input type="text" name="meaning" value="{{ item.meaning }}"></td>
+                </tr>
+                {% endfor %}
+                <tr>
+                    <td><input type="text" name="word" placeholder="新しい言葉"></td>
+                    <td><input type="text" name="meaning" placeholder="新しい意味"></td>
+                </tr>
+            </tbody>
+        </table>
+        <button type="submit">更新</button>
+    </form>
+    <a href="{{ url_for('index') }}">トップへ戻る</a>
+</body>
+</html>

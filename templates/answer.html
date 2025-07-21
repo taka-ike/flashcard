@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>結果</title>
+</head>
+<body>
+    <h1>結果</h1>
+    {% if is_correct %}
+        <p>正解！</p>
+    {% else %}
+        <p>不正解...</p>
+    {% endif %}
+    <p>問題：{{ question | safe }}</p>
+    <p>正解：{{ correct_answer }}</p>
+    <a href="{{ url_for('quiz', mode=mode, quiz_type=quiz_type) }}">次の問題へ</a>
+    <a href="{{ url_for('index') }}">トップへ戻る</a>
+</body>
+</html>
