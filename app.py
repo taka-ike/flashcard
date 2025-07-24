@@ -5,38 +5,15 @@ import re
 from datetime import datetime, timedelta
 
 app = Flask(__name__)
-app.secret_key = 'supersecretkey'  # flashメッセージのために必要
+app.secret_key = 'supersecretkey'
 
 # --- 定数 ---
 WORDS_CSV_FILE = 'data/words.csv'
 PROGRESS_CSV_FILE = 'data/user_progress.csv'
-SPACED_REPETITION_INTERVALS = [1, 2, 4, 8, 16, 32, 64] # 日
-
-# AIによる選択肢生成を有効にするか
-USE_AI_FOR_CHOICES = True # True にするとAI生成を試みますが、現状はダミー関数です
+MEANINGS_CSV_FILE = 'data/meanings.csv'
+SPACED_REPETITION_INTERVALS = [1, 2, 4, 8, 16, 32, 64]
 
 # --- データ処理 ---
-
-def generate_ai_choices(correct_answer, all_possible_answers, num_choices=4):
-    """AIが生成したかのような不正解の選択肢をシミュレートするダミー関数"""
-    incorrect_choices = []
-    # 正解以外の選択肢をフィルタリング
-    other_answers = [ans for ans in all_possible_answers if ans != correct_answer and ans is not None]
-
-    # ここにAIによる選択肢生成ロジックをシミュレートするコードを追加
-    # 例: 似たような単語、同じ品詞の単語、ランダムな単語など
-    # 今回はシンプルに、ランダムに選択肢を選びます
-
-    if len(other_answers) > 0:
-        # 可能な限り、他の正解以外の選択肢から選ぶ
-        incorrect_choices = random.sample(other_answers, min(num_choices, len(other_answers)))
-    
-    # 選択肢が足りない場合はNoneで埋めるか、空のままにする
-    while len(incorrect_choices) < num_choices:
-        incorrect_choices.append(None) # または適切なダミー値
-
-    return [choice for choice in incorrect_choices if choice is not None]
-
 
 def parse_sentence(sentence):
     match = re.search(r'__(.*?)__', sentence)
@@ -52,25 +29,20 @@ def get_all_data():
     try:
         with open(WORDS_CSV_FILE, 'r', encoding='utf-8') as f:
             reader = csv.reader(f)
-            next(reader) # header
+            next(reader)
             for row in reader:
                 if len(row) < 2: continue
-                eng_full = row[0]
-                jap_full = row[1]
+                eng_full, jap_full = row[0], row[1]
                 eng_underlined, eng_blank, eng_word = parse_sentence(eng_full)
                 jap_underlined, jap_blank, jap_word = parse_sentence(jap_full)
-                words[row[0]] = {
-                    'english_full': eng_full,
-                    'japanese_full': jap_full,
-                    'english_underlined': eng_underlined,
-                    'japanese_underlined': jap_underlined,
-                    'english_blank': eng_blank,
-                    'japanese_blank': jap_blank,
-                    'english_word': eng_word,
-                    'japanese_word': jap_word,
+                words[eng_full] = {
+                    'english_full': eng_full, 'japanese_full': jap_full,
+                    'english_underlined': eng_underlined, 'japanese_underlined': jap_underlined,
+                    'english_blank': eng_blank, 'japanese_blank': jap_blank,
+                    'english_word': eng_word, 'japanese_word': jap_word,
                 }
     except FileNotFoundError:
-        return {}
+        return []
 
     progress = {}
     try:
@@ -81,25 +53,21 @@ def get_all_data():
     except FileNotFoundError:
         pass
 
-    # 単語データと進捗データをマージ
     for eng_full, word_data in words.items():
         if eng_full not in progress:
             progress[eng_full] = {
-                'english_full': eng_full,
-                'last_reviewed': 'N/A',
+                'english_full': eng_full, 'last_reviewed': 'N/A',
                 'next_review_date': datetime.now().strftime('%Y-%m-%d'),
-                'correct_streak': 0,
-                'total_correct': 0,
-                'total_incorrect': 0
+                'correct_streak': 0, 'total_correct': 0, 'total_incorrect': 0
             }
         words[eng_full].update(progress[eng_full])
-    
-    # 数値データを正しい型に変換
+
     for word in words.values():
         word['correct_streak'] = int(word.get('correct_streak', 0))
         word['total_correct'] = int(word.get('total_correct', 0))
         word['total_incorrect'] = int(word.get('total_incorrect', 0))
-        word['accuracy'] = (word['total_correct'] / (word['total_correct'] + word['total_incorrect'])) if (word['total_correct'] + word['total_incorrect']) > 0 else 0
+        total = word['total_correct'] + word['total_incorrect']
+        word['accuracy'] = (word['total_correct'] / total) if total > 0 else 0
 
     return list(words.values())
 
@@ -109,21 +77,14 @@ def write_progress_data(all_data):
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         for word in all_data:
-            progress_data = {key: word.get(key) for key in fieldnames}
-            writer.writerow(progress_data)
-
-MEANINGS_CSV_FILE = 'data/meanings.csv'
+            writer.writerow({key: word.get(key) for key in fieldnames})
 
 def get_meanings():
-    meanings = []
     try:
         with open(MEANINGS_CSV_FILE, 'r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                meanings.append(row)
+            return list(csv.DictReader(f))
     except FileNotFoundError:
-        pass
-    return meanings
+        return []
 
 def write_meanings(meanings):
     with open(MEANINGS_CSV_FILE, 'w', encoding='utf-8', newline='') as f:
@@ -132,9 +93,33 @@ def write_meanings(meanings):
         writer.writeheader()
         writer.writerows(meanings)
 
+def generate_choices(all_answers, correct_answer):
+    other_answers = list(set(ans for ans in all_answers if ans != correct_answer and ans is not None))
+    num_choices = min(4, len(other_answers))
+    choices = random.sample(other_answers, num_choices)
+    choices.append(correct_answer)
+    random.shuffle(choices)
+    return choices
+
+def get_shuffled_data(data, seed):
+    r = random.Random(seed)
+    r.shuffle(data)
+    return data
+
 # --- クイズロジック ---
 
-
+def get_quiz_questions(mode):
+    all_data = get_all_data()
+    if mode == 'review':
+        today = datetime.now().date()
+        return [w for w in all_data if datetime.strptime(w['next_review_date'], '%Y-%m-%d').date() <= today]
+    elif mode == 'difficult':
+        return [w for w in all_data if w['accuracy'] < 0.5 or w['total_incorrect'] >= 5]
+    elif mode == 'incorrect_review':
+        incorrect_ids = session.get('incorrect_ids_for_review', [])
+        return [q for q in all_data if q['english_full'] in incorrect_ids]
+    else: # random
+        return all_data
 
 # --- Flaskルート ---
 
@@ -144,276 +129,209 @@ def index():
 
 @app.route('/quiz')
 def quiz():
-    mode = request.args.get('mode', 'random')
-    quiz_type = request.args.get('quiz_type', 'en_to_jp')
-
-    if 'quiz_questions' not in session or not session['quiz_questions']:
-        all_data = get_all_data()
-        if not all_data:
-            flash('単語が登録されていません。データベースを編集してください。')
-            return redirect(url_for('edit_db'))
-
-        # フィルタリングロジックはそのまま
-        if mode == 'review':
-            today = datetime.now().date()
-            filtered_data = [w for w in all_data if datetime.strptime(w['next_review_date'], '%Y-%m-%d').date() <= today]
-        elif mode == 'difficult':
-            filtered_data = [w for w in all_data if w['accuracy'] < 0.5 or w['total_incorrect'] >= 5]
-        else: # random
-            filtered_data = all_data
-
-        if not filtered_data:
-            flash(f'{mode.capitalize()}モードで出題できる問題がありません。')
-            return redirect(url_for('index'))
-
-        session['quiz_questions'] = random.sample(filtered_data, len(filtered_data)) # シャッフルしてセッションに保存
+    # --- クイズのセットアップ ---
+    # 新しいクイズを開始する場合
+    if request.args.get('mode'):
+        session.clear()
+        current_mode = request.args.get('mode')
+        session['quiz_mode'] = current_mode
+        session['quiz_type'] = request.args.get('quiz_type', 'en_to_jp')
+        session['quiz_seed'] = random.randint(0, 10000)
         session['current_question_index'] = 0
-        session['total_questions'] = len(session['quiz_questions'])
-        session['quiz_mode'] = mode # セッションにモードを保存
-        session['quiz_type'] = quiz_type # セッションにクイズタイプを保存
-        session['session_results'] = [] # 今のセッションでの結果を保存
+        session['correct_count'] = 0
+        session['incorrect_ids'] = [] # 現在のクイズセッションの不正解IDリスト
 
-    if session['current_question_index'] >= session['total_questions']:
-        # すべての問題が終了したらサマリーページへリダイレクト
-        total_answered = len(session['session_results'])
-        correct_count = sum(1 for _, is_correct in session['session_results'] if is_correct)
+        # 不正解問題の再挑戦の場合、前回の不正解リストを現在のセッションに引き継ぐ
+        if current_mode == 'incorrect_review':
+            last_incorrect_questions = session.get('last_incorrect_questions', [])
+            if not last_incorrect_questions:
+                flash('再挑戦する問題が見つかりませんでした。', 'error')
+                return redirect(url_for('index'))
+            session['incorrect_ids'] = [q['english_full'] for q in last_incorrect_questions]
+            session.pop('last_incorrect_questions', None) # 使用したのでクリア
+
+    # セッションが正しく初期化されているか確認
+    if 'quiz_seed' not in session:
+        return redirect(url_for('index'))
+
+    # --- 問題リストの再構築 ---
+    mode = session.get('quiz_mode', 'random')
+    questions = get_quiz_questions(mode)
+    
+    if not questions:
+        message = f'{mode.capitalize()}モードで出題できる問題がありません。'
+        session.clear()
+        return render_template('quiz_start_error.html', message=message)
+
+    questions = get_shuffled_data(questions, session['quiz_seed'])
+
+    # --- 問題表示ロジック ---
+    current_index = session.get('current_question_index', 0)
+    if current_index >= len(questions):
+        correct_count = session.get('correct_count', 0)
+        total_answered = len(questions)
         accuracy = (correct_count / total_answered * 100) if total_answered > 0 else 0
+        incorrect_ids = session.get('incorrect_ids', [])
+        
+        all_data = get_all_data()
+        incorrect_questions = [q for q in all_data if q['english_full'] in incorrect_ids]
+        session['last_incorrect_questions'] = incorrect_questions
+        
+        # クイズのメインセッション情報のみクリア
+        keys_to_pop = ['quiz_mode', 'quiz_type', 'quiz_seed', 'current_question_index', 'correct_count', 'incorrect_ids']
+        for key in keys_to_pop:
+            session.pop(key, None)
 
-        incorrect_questions_data = [q_data for q_data, is_correct in session['session_results'] if not is_correct]
-        session['last_incorrect_questions'] = incorrect_questions_data # セッションに保存
+        return redirect(url_for('quiz_summary', accuracy=f'{accuracy:.2f}', incorrect_count=len(incorrect_questions)))
 
-        # セッションをクリア
-        session.pop('quiz_questions', None)
-        session.pop('current_question_index', None)
-        session.pop('total_questions', None)
-        session.pop('quiz_mode', None)
-        session.pop('quiz_type', None)
-        session.pop('incorrect_questions', None) # 以前の不正解リストもクリア
-        session.pop('session_results', None)
-
-        return redirect(url_for('quiz_summary', accuracy=f'{accuracy:.2f}', incorrect_count=len(incorrect_questions_data)))
-
-    word_data = session['quiz_questions'][session['current_question_index']]
-
-    # --- 問題と選択肢の準備 ---
-    question = ""
-    correct_answer = ""
-    all_answers = []
-
-    eng_full = word_data['english_full']
-    jap_full = word_data['japanese_full']
-    eng_underlined = word_data['english_underlined']
-    jap_underlined = word_data['japanese_underlined']
-    eng_blank = word_data['english_blank']
-    jap_blank = word_data['japanese_blank']
-    eng_word = word_data['english_word']
-    jap_word = word_data['japanese_word']
-
-    # all_dataを再度取得して、選択肢生成に使う
+    word_data = questions[current_index]
+    quiz_type = session.get('quiz_type', 'en_to_jp')
+    
     all_data_for_choices = get_all_data()
-
     if quiz_type == 'en_to_jp':
-        question = eng_underlined
-        correct_answer = jap_word
-        all_answers = [w['japanese_word'] for w in all_data_for_choices if w['japanese_word'] is not None]
+        question, correct_answer = word_data['english_underlined'], word_data['japanese_word']
+        all_answers = [w['japanese_word'] for w in all_data_for_choices if w.get('japanese_word')]
     elif quiz_type == 'jp_to_en':
-        question = jap_underlined
-        correct_answer = eng_word
-        all_answers = [w['english_word'] for w in all_data_for_choices if w['english_word'] is not None]
-    elif quiz_type == 'fill_en':
-        question = eng_blank
-        correct_answer = eng_word
-        all_answers = [w['english_word'] for w in all_data_for_choices if w['english_word'] is not None]
-    elif quiz_type == 'fill_jp':
-        question = jap_blank
-        correct_answer = jap_word
-        all_answers = [w['japanese_word'] for w in all_data_for_choices if w['japanese_word'] is not None]
+        question, correct_answer = word_data['japanese_underlined'], word_data['english_word']
+        all_answers = [w['english_word'] for w in all_data_for_choices if w.get('english_word')]
+    else:
+        question, correct_answer = word_data['english_blank'], word_data['english_word']
+        all_answers = [w['english_word'] for w in all_data_for_choices if w.get('english_word')]
 
     choices = generate_choices(all_answers, correct_answer)
 
-    return render_template('quiz.html',
-                           question=question,
-                           choices=choices,
-                           mode=session['quiz_mode'],
-                           quiz_type=session['quiz_type'],
-                           word=word_data,
-                           correct_answer=correct_answer,
-                           current_question_index=session['current_question_index'] + 1, # 1から始まるように
-                           total_questions=session['total_questions'])
-
-def generate_choices(all_answers, correct_answer):
-    """正解１つ、不正解４つの選択肢を生成する"""
-    other_answers = list(set([ans for ans in all_answers if ans != correct_answer and ans is not None]))
-    num_choices = min(4, len(other_answers))
-    
-    choices = random.sample(other_answers, num_choices)
-    choices.append(correct_answer)
-    random.shuffle(choices)
-    return choices
+    return render_template('quiz.html', question=question, choices=choices,
+                           mode=mode, quiz_type=quiz_type,
+                           word=word_data, correct_answer=correct_answer,
+                           current_question_index=current_index + 1,
+                           total_questions=len(questions), action_url='answer')
 
 @app.route('/answer', methods=['POST'])
 def answer():
+    if 'quiz_seed' not in session:
+        flash('セッションが切れました。もう一度お試しください。', 'error')
+        return redirect(url_for('index'))
+
     user_choice = request.form['choice']
     correct_answer = request.form['correct_answer']
     eng_full = request.form['english_full']
-    mode = request.form['mode']
-    quiz_type = request.form['quiz_type'] # quiz_type を取得
     is_correct = (user_choice == correct_answer)
+
+    if is_correct:
+        session['correct_count'] += 1
+        flash('正解！', 'success')
+    else:
+        session.setdefault('incorrect_ids', []).append(eng_full)
+        flash(f'不正解... 正解は {correct_answer} でした。', 'error')
 
     all_data = get_all_data()
     target_word = next((w for w in all_data if w['english_full'] == eng_full), None)
-
     if target_word:
         target_word['last_reviewed'] = datetime.now().strftime('%Y-%m-%d')
         if is_correct:
             target_word['total_correct'] += 1
             target_word['correct_streak'] += 1
-            interval_days = SPACED_REPETITION_INTERVALS[min(target_word['correct_streak'], len(SPACED_REPETITION_INTERVALS) - 1)]
-            target_word['next_review_date'] = (datetime.now() + timedelta(days=interval_days)).strftime('%Y-%m-%d')
-            flash('正解！', 'success')
+            interval = SPACED_REPETITION_INTERVALS[min(target_word['correct_streak'], len(SPACED_REPETITION_INTERVALS) - 1)]
+            target_word['next_review_date'] = (datetime.now() + timedelta(days=interval)).strftime('%Y-%m-%d')
         else:
             target_word['total_incorrect'] += 1
             target_word['correct_streak'] = 0
             target_word['next_review_date'] = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
-            flash(f'不正解... 正解は {correct_answer} でした。', 'error')
-            if 'incorrect_questions' not in session:
-                session['incorrect_questions'] = []
-            session['incorrect_questions'].append(target_word) # 不正解だった問題をセッションに保存
-
         write_progress_data(all_data)
 
-    # セッション結果を記録
-    if 'session_results' not in session:
-        session['session_results'] = []
-    session['session_results'].append((target_word, is_correct))
-    
     session['current_question_index'] += 1
-    return redirect(url_for('quiz', mode=mode, quiz_type=quiz_type))
+    return redirect(url_for('quiz'))
 
+# --- 意味クイズ（同様のロジック） ---
 @app.route('/meaning_quiz')
 def meaning_quiz():
-    mode = request.args.get('mode', 'word_to_meaning')
-
-    if 'meaning_quiz_questions' not in session or not session['meaning_quiz_questions']:
-        meanings = get_meanings()
-        if not meanings:
-            flash('言葉の意味が登録されていません。データベースを編集してください。')
-            return redirect(url_for('edit_meanings'))
-
-        session['meaning_quiz_questions'] = random.sample(meanings, len(meanings)) # シャッフルしてセッションに保存
+    if request.args.get('mode'):
+        session.clear()
+        session['meaning_quiz_mode'] = request.args.get('mode')
+        session['meaning_quiz_seed'] = random.randint(0, 10000)
         session['current_meaning_question_index'] = 0
-        session['total_meaning_questions'] = len(session['meaning_quiz_questions'])
-        session['meaning_quiz_mode'] = mode # セッションにモードを保存
+        session['meaning_correct_count'] = 0
+        session['meaning_incorrect_ids'] = []
 
-    if session['current_meaning_question_index'] >= session['total_meaning_questions']:
-        if 'incorrect_meaning_questions' in session and session['incorrect_meaning_questions']:
-            # 不正解だった問題を再度出題リストに追加し、シャッフル
-            session['meaning_quiz_questions'].extend(session['incorrect_meaning_questions'])
-            random.shuffle(session['meaning_quiz_questions'])
-            session['current_meaning_question_index'] = 0
-            session['total_meaning_questions'] = len(session['meaning_quiz_questions'])
-            session['incorrect_meaning_questions'] = [] # リセット
-            flash('不正解だった言葉の意味問題を再度出題します。', 'info')
-        else:
-            flash('すべての言葉の意味問題が終了しました！', 'success')
-            session.pop('meaning_quiz_questions', None)
-            session.pop('current_meaning_question_index', None)
-            session.pop('total_meaning_questions', None)
-            session.pop('meaning_quiz_mode', None)
-            session.pop('incorrect_meaning_questions', None)
-            return redirect(url_for('index'))
+    if 'meaning_quiz_seed' not in session:
+        return redirect(url_for('index'))
 
-    meaning_data = session['meaning_quiz_questions'][session['current_meaning_question_index']]
+    mode = session.get('meaning_quiz_mode')
+    questions = get_meanings()
+    if not questions:
+        message = '言葉が登録されていません。'
+        session.clear()
+        return render_template('quiz_start_error.html', message=message)
 
-    question = ""
-    correct_answer = ""
-    all_answers = []
+    questions = get_shuffled_data(questions, session['meaning_quiz_seed'])
 
-    # all_dataを再度取得して、選択肢生成に使う
+    current_index = session.get('current_meaning_question_index', 0)
+    if current_index >= len(questions):
+        correct_count = session.get('meaning_correct_count', 0)
+        total_answered = len(questions)
+        accuracy = (correct_count / total_answered * 100) if total_answered > 0 else 0
+        incorrect_ids = session.get('meaning_incorrect_ids', [])
+        
+        all_meanings = get_meanings()
+        incorrect_questions = [q for q in all_meanings if q['word'] in incorrect_ids]
+        session['last_incorrect_questions'] = incorrect_questions
+
+        session.clear()
+        return redirect(url_for('quiz_summary', accuracy=f'{accuracy:.2f}', incorrect_count=len(incorrect_questions)))
+
+    meaning_data = questions[current_index]
+
     all_meanings_for_choices = get_meanings()
-
     if mode == 'word_to_meaning':
-        question = meaning_data['word']
-        correct_answer = meaning_data['meaning']
+        question, correct_answer = meaning_data['word'], meaning_data['meaning']
         all_answers = [m['meaning'] for m in all_meanings_for_choices]
-    elif mode == 'meaning_to_word':
-        question = meaning_data['meaning']
-        correct_answer = meaning_data['word']
+    else:
+        question, correct_answer = meaning_data['meaning'], meaning_data['word']
         all_answers = [m['word'] for m in all_meanings_for_choices]
 
     choices = generate_choices(all_answers, correct_answer)
 
-    return render_template('meaning_quiz.html',
-                           question=question,
-                           choices=choices,
-                           mode=session['meaning_quiz_mode'],
-                           correct_answer=correct_answer,
-                           current_question_index=session['current_meaning_question_index'] + 1, # 1から始まるように
-                           total_questions=session['total_meaning_questions'])
+    return render_template('meaning_quiz.html', question=question, choices=choices, mode=mode,
+                           correct_answer=correct_answer, word_id=meaning_data['word'],
+                           current_question_index=current_index + 1,
+                           total_questions=len(questions))
 
 @app.route('/meaning_answer', methods=['POST'])
 def meaning_answer():
+    if 'meaning_quiz_seed' not in session:
+        flash('セッションが切れました。もう一度お試しください。', 'error')
+        return redirect(url_for('index'))
+
     user_choice = request.form['choice']
     correct_answer = request.form['correct_answer']
-    question = request.form['question']
-    mode = request.form['mode']
-
+    word_id = request.form['word_id']
     is_correct = (user_choice == correct_answer)
 
     if is_correct:
+        session['meaning_correct_count'] += 1
         flash('正解！', 'success')
     else:
+        session.setdefault('meaning_incorrect_ids', []).append(word_id)
         flash(f'不正解... 正解は {correct_answer} でした。', 'error')
-        # 不正解だった問題をセッションに保存
-        if 'incorrect_meaning_questions' not in session:
-            session['incorrect_meaning_questions'] = []
-        # 現在の問題データを取得して保存
-        current_meaning_question = session['meaning_quiz_questions'][session['current_meaning_question_index']]
-        session['incorrect_meaning_questions'].append(current_meaning_question)
 
     session['current_meaning_question_index'] += 1
-    return redirect(url_for('meaning_quiz', mode=mode))
+    return redirect(url_for('meaning_quiz'))
 
 @app.route('/quiz_summary')
 def quiz_summary():
     accuracy = request.args.get('accuracy', '0.00')
     incorrect_count = request.args.get('incorrect_count', 0)
-    
-    # 不正解だった問題のデータをセッションから取得
-    incorrect_questions_data = session.get('last_incorrect_questions', [])
-    
-    return render_template('quiz_summary.html', accuracy=accuracy, incorrect_count=incorrect_count, incorrect_questions=incorrect_questions_data)
-
-@app.route('/start_incorrect_quiz')
-def start_incorrect_quiz():
-    # 不正解だった問題のみでクイズを再開
     incorrect_questions = session.get('last_incorrect_questions', [])
-    if not incorrect_questions:
-        flash('不正解だった問題がありません。', 'info')
-        return redirect(url_for('index'))
+    return render_template('quiz_summary.html', accuracy=accuracy, 
+                           incorrect_count=incorrect_count, 
+                           incorrect_questions=incorrect_questions)
 
-    session['quiz_questions'] = random.sample(incorrect_questions, len(incorrect_questions))
-    session['current_question_index'] = 0
-    session['total_questions'] = len(session['quiz_questions'])
-    session['quiz_mode'] = 'incorrect_review' # 新しいモード
-    session['quiz_type'] = 'en_to_jp' # または前回のクイズタイプを保持
-    session['session_results'] = []
-    session.pop('last_incorrect_questions', None) # 使用したのでクリア
 
-    return redirect(url_for('quiz'))
 
 @app.route('/start_all_quiz')
 def start_all_quiz():
-    # 全問題でクイズを再開
-    session.pop('quiz_questions', None)
-    session.pop('current_question_index', None)
-    session.pop('total_questions', None)
-    session.pop('quiz_mode', None)
-    session.pop('quiz_type', None)
-    session.pop('session_results', None)
-    session.pop('last_incorrect_questions', None)
-
-    return redirect(url_for('quiz', mode='random')) # デフォルトのランダムモードで開始
+    session.clear()
+    return redirect(url_for('quiz', mode='random'))
 
 @app.route('/edit')
 def edit_db():
@@ -425,56 +343,33 @@ def update_db():
     english_words = request.form.getlist('english_full')
     japanese_words = request.form.getlist('japanese_full')
     
-    # 単語データの更新
-    new_words_data = []
-    for eng, jap in zip(english_words, japanese_words):
-        if eng and jap:
-            new_words_data.append({'english': eng, 'japanese': jap})
+    new_words_data = [{'english': eng, 'japanese': jap} for eng, jap in zip(english_words, japanese_words) if eng and jap]
     with open(WORDS_CSV_FILE, 'w', encoding='utf-8', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(['english', 'japanese'])
         for word in new_words_data:
             writer.writerow([word['english'], word['japanese']])
 
-    # 進捗データも同期
     all_data = get_all_data()
     write_progress_data(all_data)
 
-    # クイズセッションをリセット
-    session.pop('quiz_questions', None)
-    session.pop('current_question_index', None)
-    session.pop('total_questions', None)
-    session.pop('quiz_mode', None)
-    session.pop('quiz_type', None)
-    session.pop('session_results', None)
-    session.pop('incorrect_questions', None)
-    session.pop('last_incorrect_questions', None)
-    session.pop('meaning_quiz_questions', None)
-    session.pop('current_meaning_question_index', None)
-    session.pop('total_meaning_questions', None)
-    session.pop('meaning_quiz_mode', None)
-    session.pop('incorrect_meaning_questions', None)
-
+    session.clear()
     flash('データベースが更新されました。')
-    words = get_all_data()
-    return render_template('edit.html', words=words)
+    return redirect(url_for('edit_db'))
 
 @app.route('/edit_meanings')
 def edit_meanings():
-    meanings = get_meanings()
-    return render_template('edit_meanings.html', meanings=meanings)
+    return render_template('edit_meanings.html', meanings=get_meanings())
 
 @app.route('/update_meanings', methods=['POST'])
 def update_meanings():
     words = request.form.getlist('word')
     meanings = request.form.getlist('meaning')
     
-    new_meanings_data = []
-    for w, m in zip(words, meanings):
-        if w and m:
-            new_meanings_data.append({'word': w, 'meaning': m})
-            
+    new_meanings_data = [{'word': w, 'meaning': m} for w, m in zip(words, meanings) if w and m]
     write_meanings(new_meanings_data)
+    
+    session.clear()
     flash('言葉の意味データベースが更新されました。')
     return redirect(url_for('index'))
 

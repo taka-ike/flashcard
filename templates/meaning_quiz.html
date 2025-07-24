@@ -42,9 +42,10 @@
     {% endwith %}
     <p>問題 {{ current_question_index }} / {{ total_questions }}</p>
     <h2>{{ question }}</h2>
-    <form action="/meaning_answer" method="post">
+    <form action="{{ url_for('meaning_answer') }}" method="post">
         <input type="hidden" name="question" value="{{ question }}">
         <input type="hidden" name="correct_answer" value="{{ correct_answer }}">
+        <input type="hidden" name="word_id" value="{{ word_id }}">
         <input type="hidden" name="mode" value="{{ mode }}">
         <div class="choices-container">
         {% for choice in choices %}

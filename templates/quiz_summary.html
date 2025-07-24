@@ -73,24 +73,27 @@
             <p>不正解数: <strong>{{ incorrect_count }}</strong></p>
         </div>
 
-        {% if incorrect_questions %}
-            <h2>不正解だった問題</h2>
+        <h2>不正解だった問題</h2>
             <ul class="incorrect-list">
                 {% for q in incorrect_questions %}
                     <li>
-                        <strong>問題:</strong> {{ q.english_full }}<br>
-                        <strong>正解:</strong> {{ q.japanese_full }}
+                        {% if q.english_full %}
+                            <strong>問題:</strong> {{ q.english_full }}<br>
+                            <strong>正解:</strong> {{ q.japanese_full }}
+                        {% else %}
+                            <strong>問題:</strong> {{ q.word }}<br>
+                            <strong>正解:</strong> {{ q.meaning }}
+                        {% endif %}
                     </li>
                 {% endfor %}
             </ul>
             <div class="actions">
-                <form action="{{ url_for('start_incorrect_quiz') }}" method="get">
+                <form action="{{ url_for('quiz') }}" method="get">
+                    <input type="hidden" name="mode" value="incorrect_review">
                     <button type="submit">不正解問題に再挑戦</button>
                 </form>
             </div>
-        {% else %}
             <p>素晴らしい！今回のクイズでは全問正解でした！</p>
-        {% endif %}
 
         <div class="actions">
             <form action="{{ url_for('start_all_quiz') }}" method="get">
