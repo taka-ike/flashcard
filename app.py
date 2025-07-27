@@ -117,6 +117,8 @@ def get_quiz_questions(mode):
         return [w for w in all_data if w['accuracy'] < 0.5 or w['total_incorrect'] >= 5]
     elif mode == 'incorrect_review':
         incorrect_ids = session.get('incorrect_ids_for_review', [])
+        if not incorrect_ids:
+            return [] # 空のリストを返す
         return [q for q in all_data if q['english_full'] in incorrect_ids]
     else: # random
         return all_data
@@ -132,26 +134,33 @@ def quiz():
     # --- クイズのセットアップ ---
     # 新しいクイズを開始する場合
     if request.args.get('mode'):
+        # 必要なセッション情報のみを保持し、他をクリア
+        last_incorrect = session.get('last_incorrect_questions', [])
+        keys_to_keep = {'last_incorrect_questions': last_incorrect}
         session.clear()
+        session.update(keys_to_keep)
+
         current_mode = request.args.get('mode')
         session['quiz_mode'] = current_mode
         session['quiz_type'] = request.args.get('quiz_type', 'en_to_jp')
         session['quiz_seed'] = random.randint(0, 10000)
         session['current_question_index'] = 0
         session['correct_count'] = 0
-        session['incorrect_ids'] = [] # 現在のクイズセッションの不正解IDリスト
+        session['incorrect_ids'] = []
 
-        # 不正解問題の再挑戦の場合、前回の不正解リストを現在のセッションに引き継ぐ
         if current_mode == 'incorrect_review':
             last_incorrect_questions = session.get('last_incorrect_questions', [])
             if not last_incorrect_questions:
                 flash('再挑戦する問題が見つかりませんでした。', 'error')
-                return redirect(url_for('index'))
-            session['incorrect_ids'] = [q['english_full'] for q in last_incorrect_questions]
-            session.pop('last_incorrect_questions', None) # 使用したのでクリア
+                return render_template('quiz_start_error.html', message='再挑戦する問題が見つかりませんでした。')
+            
+            # incorrect_reviewモード専用のIDリストをセッションに保存
+            session['incorrect_ids_for_review'] = [q['english_full'] for q in last_incorrect_questions]
+            # last_incorrect_questionsは不要になったので削除
+            session.pop('last_incorrect_questions', None)
 
-    # セッションが正しく初期化されているか確認
     if 'quiz_seed' not in session:
+        flash('クイズセッションが開始されていません。', 'error')
         return redirect(url_for('index'))
 
     # --- 問題リストの再構築 ---
@@ -363,15 +372,32 @@ def edit_meanings():
 
 @app.route('/update_meanings', methods=['POST'])
 def update_meanings():
+    # 既存のデータを読み込む
+    existing_meanings = get_meanings()
+    
+    # フォームから送信されたデータを取得
     words = request.form.getlist('word')
     meanings = request.form.getlist('meaning')
+
+    # 更新されたデータのリストを作成
+    updated_meanings = []
+    for i in range(len(words)):
+        # 空の行は無視
+        if words[i] and meanings[i]:
+            updated_meanings.append({'word': words[i], 'meaning': meanings[i]})
+
+    # 新しい単語（new_word, new_meaning）の処理
+    new_words = request.form.getlist('new_word')
+    new_meanings = request.form.getlist('new_meaning')
+    for i in range(len(new_words)):
+        if new_words[i] and new_meanings[i]:
+            updated_meanings.append({'word': new_words[i], 'meaning': new_meanings[i]})
+
+    # データを書き込む
+    write_meanings(updated_meanings)
     
-    new_meanings_data = [{'word': w, 'meaning': m} for w, m in zip(words, meanings) if w and m]
-    write_meanings(new_meanings_data)
-    
-    session.clear()
     flash('言葉の意味データベースが更新されました。')
-    return redirect(url_for('index'))
+    return redirect(url_for('edit_meanings'))
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0',port=8080,debug=False)

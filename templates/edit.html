@@ -39,21 +39,27 @@
                 <tr>
                     <td><input type="text" name="english_full" value="{{ word.english_full }}"></td>
                     <td><input type="text" name="japanese_full" value="{{ word.japanese_full }}"></td>
+                    <!--
                     <td>{{ '%.0f'|format(word.accuracy * 100) }}%</td>
                     <td>{{ word.next_review_date }}</td>
+                    -->
                 </tr>
                 {% endfor %}
                 <tr>
                     <td><input type="text" name="english_full" placeholder="新しい英文"></td>
                     <td><input type="text" name="japanese_full" placeholder="新しい日本文"></td>
+                    <!--
                     <td>-</td>
                     <td>-</td>
+                    -->
                 </tr>
                 <tr>
                     <td><input type="text" name="english_full" placeholder="新しい英文"></td>
                     <td><input type="text" name="japanese_full" placeholder="新しい日本文"></td>
+                    <!--
                     <td>-</td>
                     <td>-</td>
+                    -->
                 </tr>
             </tbody>
         </table>

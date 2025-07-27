@@ -5,55 +5,126 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>クイズ</title>
     <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f9;
+        }
+        h1, h2 {
+            text-align: center;
+            color: #333;
+        }
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .flashes {
+            list-style: none;
+            padding: 0;
+            margin-bottom: 1rem;
+        }
+        .flash-success, .flash-error, .flash-info {
+            padding: .75rem 1.25rem;
+            margin-bottom: 1rem;
+            border: 1px solid transparent;
+            border-radius: .25rem;
+        }
         .flash-success {
-            color: green;
-            font-weight: bold;
+            color: #155724;
+            background-color: #d4edda;
+            border-color: #c3e6cb;
         }
         .flash-error {
-            color: red;
-            font-weight: bold;
+            color: #721c24;
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
         }
         .flash-info {
-            color: blue;
+            color: #0c5460;
+            background-color: #d1ecf1;
+            border-color: #bee5eb;
         }
         .choices-container {
-            display: flex;
-            flex-direction: column;
-            gap: 10px; /* スペースを追加 */
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+            margin-top: 20px;
         }
         .choices-container button {
-            width: 100%; /* 親要素の幅に合わせる */
-            padding: 10px;
-            box-sizing: border-box; /* パディングを幅に含める */
-            text-align: left; /* テキストを左寄せ */
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            width: 100%;
+            padding: 15px;
+            box-sizing: border-box;
+            text-align: center;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out, transform 0.1s ease, filter 0.2s ease-in-out;
+        }
+        .choices-container button:nth-child(odd) { background-color: #004d40; }
+        .choices-container button:nth-child(even) { background-color: #006064; }
+
+        .choices-container button:hover {
+            filter: brightness(85%);
+        }
+        .choices-container button:active {
+            transform: scale(0.98);
+            filter: brightness(70%);
+        }
+        .back-link {
+            display: block;
+            text-align: center;
+            margin-top: 20px;
+            color: #007bff;
+            text-decoration: none;
+        }
+        .back-link:hover {
+            text-decoration: underline;
+        }
+        h2 u {
+            font-size: 1.5em;
+            font-weight: bold;
         }
     </style>
 </head>
 <body>
     <h1>クイズ</h1>
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            <ul class=flashes>
-            {% for category, message in messages %}
-                <li class="flash-{{ category }}">{{ message }}</li>
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <ul class=flashes>
+                {% for category, message in messages %}
+                    <li class="flash-{{ category }}">{{ message }}</li>
+                {% endfor %}
+                </ul>
+            {% endif %}
+        {% endwith %}
+        <p>問題 {{ current_question_index }} / {{ total_questions }}</p>
+        <h2>{{ question | safe }}</h2>
+        <form action="{{ url_for(action_url) }}" method="post">
+            <input type="hidden" name="question" value="{{ question }}">
+            <input type="hidden" name="correct_answer" value="{{ correct_answer }}">
+            <input type="hidden" name="mode" value="{{ mode }}">
+            <input type="hidden" name="quiz_type" value="{{ quiz_type }}">
+            <input type="hidden" name="english_full" value="{{ word.english_full }}">
+            <div class="choices-container">
+            {% for choice in choices %}
+                <button type="submit" name="choice" value="{{ choice }}">{{ choice }}</button>
             {% endfor %}
-            </ul>
-        {% endif %}
-    {% endwith %}
-    <p>問題 {{ current_question_index }} / {{ total_questions }}</p>
-    <h2>{{ question | safe }}</h2>
-    <form action="{{ url_for(action_url) }}" method="post">
-        <input type="hidden" name="question" value="{{ question }}">
-        <input type="hidden" name="correct_answer" value="{{ correct_answer }}">
-        <input type="hidden" name="mode" value="{{ mode }}">
-        <input type="hidden" name="quiz_type" value="{{ quiz_type }}">
-        <input type="hidden" name="english_full" value="{{ word.english_full }}">
-        <div class="choices-container">
-        {% for choice in choices %}
-            <button type="submit" name="choice" value="{{ choice }}">{{ choice }}</button>
-        {% endfor %}
-        </div>
-    </form>
-    <p><a href="{{ url_for('index') }}">トップページに戻る</a></p>
+            </div>
+        </form>
+    </div>
+    <a href="{{ url_for('index') }}" class="back-link">トップページに戻る</a>
 </body>
 </html>
